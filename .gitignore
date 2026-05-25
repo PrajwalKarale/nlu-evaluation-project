@@ -1,0 +1,27 @@
+# Environment variables (contains DB credentials)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database (local SQLite if used for testing)
+*.db
+
+# Temp files
+~$*

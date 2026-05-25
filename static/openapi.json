@@ -1,0 +1,344 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Chicago Building Violations API",
+    "description": "API for querying City of Chicago building violations, scofflaw status, and submitting property comments.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "NLU Evaluation Project"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current server"
+    }
+  ],
+  "paths": {
+    "/property/{address}/": {
+      "get": {
+        "summary": "Get property violations and scofflaw status",
+        "description": "Returns violation history and scofflaw status for a given address. Returns 404 if the address is not found in either the violations or scofflaws table.",
+        "operationId": "getProperty",
+        "tags": ["Property"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "Property address to look up (case-insensitive, whitespace-trimmed)",
+            "schema": {
+              "type": "string",
+              "example": "7120 S ROCKWELL ST"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Property found — returns violations and scofflaw status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyResponse"
+                },
+                "example": {
+                  "address": "7120 S ROCKWELL ST",
+                  "last_violation_date": "2025-08-14",
+                  "violation_count": 2,
+                  "violations": [
+                    {
+                      "date": "2025-08-14",
+                      "code": "CN104035",
+                      "status": "OPEN",
+                      "description": "MAINTAIN WINDOW",
+                      "inspector_comments": "BASEMENT - WINDOWS PANES BROKEN.14X-3-303.13"
+                    }
+                  ],
+                  "SCOFFLAW": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Address not found in database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Address not found"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/property/{address}/comments/": {
+      "post": {
+        "summary": "Add a comment to a property address",
+        "description": "Submit a user comment tied to a property address. The comment is stored in a separate comments table. Server generates the timestamp.",
+        "operationId": "postComment",
+        "tags": ["Comments"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "Property address to comment on",
+            "schema": {
+              "type": "string",
+              "example": "7120 S ROCKWELL ST"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentCreate"
+              },
+              "example": {
+                "author": "John Doe",
+                "comment": "This building has visible structural damage on the east wall."
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Comment created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentCreated"
+                },
+                "example": {
+                  "message": "Comment created successfully",
+                  "id": 1,
+                  "created_at": "2025-05-23T14:30:00.000000"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (missing/empty fields or invalid JSON)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "author is required and cannot be empty"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Address not found in violations or scofflaws database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Address not found in database"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/property/scofflaws/violations": {
+      "get": {
+        "summary": "Get scofflaw addresses with violations since a date",
+        "description": "Returns an array of scofflaw property addresses that have had at least one violation on or after the specified date. This performs a JOIN between the scofflaws and violations tables.",
+        "operationId": "getScofflawViolations",
+        "tags": ["Scofflaws"],
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": true,
+            "description": "Cutoff date (inclusive) in YYYY-MM-DD format",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2024-06-01"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of scofflaw addresses with violations since the given date",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScofflawSinceResponse"
+                },
+                "example": {
+                  "since": "2024-06-01",
+                  "count": 15,
+                  "addresses": [
+                    "500 E 88TH ST",
+                    "7900 S DREXEL AVE",
+                    "4822 W MELROSE ST"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid date parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Invalid date format. Use YYYY-MM-DD"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Violation": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Violation date (YYYY-MM-DD)"
+          },
+          "code": {
+            "type": "string",
+            "description": "Violation code (e.g. CN104035)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["OPEN", "COMPLIED", "NO ENTRY"],
+            "description": "Current violation status"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Short description of the violation"
+          },
+          "inspector_comments": {
+            "type": "string",
+            "nullable": true,
+            "description": "Inspector's detailed comments"
+          }
+        },
+        "required": ["date", "code", "status"]
+      },
+      "PropertyResponse": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Normalized address (uppercase, trimmed)"
+          },
+          "last_violation_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Date of the most recent violation"
+          },
+          "violation_count": {
+            "type": "integer",
+            "description": "Total number of violations for this address"
+          },
+          "violations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Violation"
+            },
+            "description": "All known violations (unordered)"
+          },
+          "SCOFFLAW": {
+            "type": "boolean",
+            "description": "Whether this address appears on the scofflaw list"
+          }
+        },
+        "required": ["address", "last_violation_date", "violation_count", "violations", "SCOFFLAW"]
+      },
+      "CommentCreate": {
+        "type": "object",
+        "properties": {
+          "author": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Name of the comment author"
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 5000,
+            "description": "Comment content"
+          }
+        },
+        "required": ["author", "comment"]
+      },
+      "CommentCreated": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Success confirmation message"
+          },
+          "id": {
+            "type": "integer",
+            "description": "Auto-generated comment ID"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Server-generated timestamp (ISO 8601)"
+          }
+        },
+        "required": ["message", "id", "created_at"]
+      },
+      "ScofflawSinceResponse": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "string",
+            "format": "date",
+            "description": "The date filter that was applied"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of matching addresses"
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Scofflaw property addresses with violations since the given date"
+          }
+        },
+        "required": ["since", "count", "addresses"]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error message"
+          }
+        },
+        "required": ["error"]
+      }
+    }
+  }
+}

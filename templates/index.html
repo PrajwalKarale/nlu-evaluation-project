@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chicago Building Violations Explorer</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏢 Chicago Building Violations Explorer</h1>
+            <p class="subtitle">Search property violations, check scofflaw status, and add comments</p>
+            <p class="subtitle"><a href="/docs" style="color: #4a90d9;">📖 Interactive API Documentation (Swagger)</a></p>
+        </header>
+
+        <!-- Section 1: Property Lookup -->
+        <section class="card">
+            <h2>🔍 Property Lookup</h2>
+            <p class="hint">Search by address to see violations and scofflaw status</p>
+            <div class="input-group">
+                <input type="text" id="address-input" placeholder="Enter address (e.g. 7120 S ROCKWELL ST)">
+                <button onclick="searchProperty()">Search</button>
+            </div>
+            <div class="examples">
+                Try: 
+                <a href="#" onclick="fillAddress('7120 S ROCKWELL ST')">7120 S ROCKWELL ST</a> |
+                <a href="#" onclick="fillAddress('500 E 88TH ST')">500 E 88TH ST</a> |
+                <a href="#" onclick="fillAddress('3550 N LAKE SHORE DR')">3550 N LAKE SHORE DR</a> |
+                <a href="#" onclick="fillAddress('7900 S DREXEL AVE')">7900 S DREXEL AVE</a>
+            </div>
+            <div id="property-result" class="result"></div>
+        </section>
+
+        <!-- Section 2: Add Comment -->
+        <section class="card">
+            <h2>💬 Add Comment</h2>
+            <p class="hint">Submit a comment about a property address (address must exist in our database)</p>
+            <div class="form-group">
+                <input type="text" id="comment-address" placeholder="Address">
+                <input type="text" id="comment-author" placeholder="Your name">
+                <textarea id="comment-text" placeholder="Your comment..." rows="3"></textarea>
+                <button onclick="submitComment()">Submit Comment</button>
+            </div>
+            <div id="comment-result" class="result"></div>
+        </section>
+
+        <!-- Section 3: Scofflaw Violations -->
+        <section class="card">
+            <h2>📋 Scofflaw Violations</h2>
+            <p class="hint">Find scofflaw properties with violations since a given date</p>
+            <div class="input-group">
+                <input type="date" id="since-date" value="2024-06-01">
+                <button onclick="searchScofflaws()">Search</button>
+            </div>
+            <div id="scofflaw-result" class="result"></div>
+        </section>
+
+        <footer>
+            <p>Data source: <a href="https://data.cityofchicago.org/Buildings/Building-Violations/22u3-xenr" target="_blank">City of Chicago Building Violations</a> &amp; <a href="https://data.cityofchicago.org/Buildings/Building-Code-Scofflaw-List/crg5-4zyp" target="_blank">Building Code Scofflaw List</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // Helper: fill address input
+        function fillAddress(addr) {
+            document.getElementById('address-input').value = addr;
+            searchProperty();
+        }
+
+        // Endpoint 1: GET /property/<address>/
+        async function searchProperty() {
+            const address = document.getElementById('address-input').value.trim();
+            const resultDiv = document.getElementById('property-result');
+
+            if (!address) {
+                resultDiv.innerHTML = '<p class="error">Please enter an address</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<p class="loading">Searching...</p>';
+
+            try {
+                const response = await fetch(`/property/${encodeURIComponent(address)}/`);
+                const data = await response.json();
+
+                if (response.status === 404) {
+                    resultDiv.innerHTML = '<p class="error">Address not found in database</p>';
+                    return;
+                }
+
+                if (!response.ok) {
+                    resultDiv.innerHTML = `<p class="error">${data.error || 'An error occurred'}</p>`;
+                    return;
+                }
+
+                let html = `
+                    <div class="property-info">
+                        <h3>${data.address}</h3>
+                        <div class="stats">
+                            <span class="stat">
+                                <strong>Last Violation:</strong> ${data.last_violation_date || 'N/A'}
+                            </span>
+                            <span class="stat">
+                                <strong>Total Violations:</strong> ${data.violation_count}
+                            </span>
+                            <span class="stat ${data.SCOFFLAW ? 'scofflaw-yes' : 'scofflaw-no'}">
+                                <strong>Scofflaw:</strong> ${data.SCOFFLAW ? '⚠️ YES' : '✅ No'}
+                            </span>
+                        </div>
+                `;
+
+                if (data.violations.length > 0) {
+                    html += `<h4>Violations (${data.violations.length})</h4>`;
+                    html += '<div class="violations-table"><table><thead><tr>';
+                    html += '<th>Date</th><th>Code</th><th>Status</th><th>Description</th><th>Inspector Comments</th>';
+                    html += '</tr></thead><tbody>';
+
+                    for (const v of data.violations.slice(0, 50)) {
+                        html += `<tr>
+                            <td>${v.date || 'N/A'}</td>
+                            <td>${v.code || ''}</td>
+                            <td><span class="status-${(v.status || '').toLowerCase()}">${v.status || ''}</span></td>
+                            <td>${v.description || ''}</td>
+                            <td>${v.inspector_comments || ''}</td>
+                        </tr>`;
+                    }
+
+                    html += '</tbody></table></div>';
+
+                    if (data.violations.length > 50) {
+                        html += `<p class="note">Showing first 50 of ${data.violations.length} violations</p>`;
+                    }
+                }
+
+                html += '</div>';
+                resultDiv.innerHTML = html;
+
+            } catch (err) {
+                resultDiv.innerHTML = `<p class="error">Network error: ${err.message}</p>`;
+            }
+        }
+
+        // Endpoint 2: POST /property/<address>/comments/
+        async function submitComment() {
+            const address = document.getElementById('comment-address').value.trim();
+            const author = document.getElementById('comment-author').value.trim();
+            const comment = document.getElementById('comment-text').value.trim();
+            const resultDiv = document.getElementById('comment-result');
+
+            if (!address || !author || !comment) {
+                resultDiv.innerHTML = '<p class="error">All fields are required</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<p class="loading">Submitting...</p>';
+
+            try {
+                const response = await fetch(`/property/${encodeURIComponent(address)}/comments/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ author, comment })
+                });
+                const data = await response.json();
+
+                if (response.status === 201) {
+                    resultDiv.innerHTML = `<p class="success">✓ ${data.message} (ID: ${data.id})</p>`;
+                    // Clear form
+                    document.getElementById('comment-text').value = '';
+                } else {
+                    resultDiv.innerHTML = `<p class="error">${data.error || 'Failed to submit'}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p class="error">Network error: ${err.message}</p>`;
+            }
+        }
+
+        // Endpoint 3: GET /property/scofflaws/violations?since=
+        async function searchScofflaws() {
+            const since = document.getElementById('since-date').value;
+            const resultDiv = document.getElementById('scofflaw-result');
+
+            if (!since) {
+                resultDiv.innerHTML = '<p class="error">Please select a date</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<p class="loading">Searching...</p>';
+
+            try {
+                const response = await fetch(`/property/scofflaws/violations?since=${since}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    resultDiv.innerHTML = `<p class="error">${data.error || 'An error occurred'}</p>`;
+                    return;
+                }
+
+                let html = `<p><strong>${data.count}</strong> scofflaw properties with violations since ${data.since}:</p>`;
+
+                if (data.addresses.length > 0) {
+                    html += '<ul class="address-list">';
+                    for (const addr of data.addresses) {
+                        html += `<li><a href="#" onclick="document.getElementById('address-input').value='${addr}';searchProperty();return false;">${addr}</a></li>`;
+                    }
+                    html += '</ul>';
+                } else {
+                    html += '<p class="note">No scofflaw properties found with violations after this date.</p>';
+                }
+
+                resultDiv.innerHTML = html;
+
+            } catch (err) {
+                resultDiv.innerHTML = `<p class="error">Network error: ${err.message}</p>`;
+            }
+        }
+
+        // Allow Enter key on address input
+        document.getElementById('address-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchProperty();
+        });
+    </script>
+</body>
+</html>
