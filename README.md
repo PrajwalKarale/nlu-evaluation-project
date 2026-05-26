@@ -158,6 +158,7 @@ See [api_documentation.md](api_documentation.md) for full request/response schem
 │   ├── __init__.py           ← App factory (create_app)
 │   ├── routes.py             ← API endpoint handlers
 │   ├── db.py                 ← Database connection + helpers
+│   ├── models.py             ← Models for Request and Response
 │   └── validators.py         ← Input validation & sanitization
 │
 ├── scripts/                  ← Standalone scripts
