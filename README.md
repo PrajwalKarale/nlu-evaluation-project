@@ -43,7 +43,26 @@ A backend API service that processes City of Chicago building violation and scof
 - Python 3.9+
 - A Supabase account (free tier) or any PostgreSQL database
 
-### Setup
+### Quick Setup (Recommended)
+
+```bash
+git clone https://github.com/YOUR_USERNAME/nlu-building-violations.git
+cd nlu-building-violations
+
+# Edit .env with your Supabase/PostgreSQL connection string
+cp .env.example .env
+# Set DATABASE_URL in .env
+
+# Run the setup script (installs deps, loads data)
+chmod +x setup.sh
+./setup.sh
+```
+
+The setup script handles everything: virtual environment, dependencies, and data ingestion.
+
+### Manual Setup
+
+If you prefer to run each step manually:
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/nlu-building-violations.git
@@ -59,6 +78,9 @@ pip install -r requirements.txt
 # Configure database connection
 cp .env.example .env
 # Edit .env with your Supabase/PostgreSQL connection string
+
+# Run data ingestion
+python scripts/ingest.py
 ```
 
 ### Ingest Data
@@ -127,6 +149,7 @@ See [api_documentation.md](api_documentation.md) for full request/response schem
 ├── README.md                 ← This file
 ├── api_documentation.md      ← API JSON schema documentation
 ├── requirements.txt          ← Python dependencies
+├── setup.sh                  ← One-command setup script
 ├── run.py                    ← Application entry point
 ├── .env.example              ← Environment variable template
 ├── .gitignore
