@@ -4,7 +4,7 @@ A backend API service that processes City of Chicago building violation and scof
 
 ## Live Demo
 
-🔗 **[Live Link](https://nlu-building-violations.onrender.com)** *(update with actual URL after deployment)*
+🔗 **[Live Link](https://nlu-evaluation-project.onrender.com/)**
 
 ---
 
